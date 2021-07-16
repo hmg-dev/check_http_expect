@@ -31,7 +31,9 @@ EXIT_UNKNOWN=3
 # defaults
 useragent="Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.6) Gecko/20070725 Firefox/2.0.0.6"
 searchStrings=()
+searchHeaders=()
 avoidStrings=()
+avoidHeaders=()
 
 ################################################################################
 #
@@ -75,7 +77,7 @@ print_version() {
 # @output string  The usage screen.
 # @return integer 0
 print_usage() {
-	printf "Usage:  check_http_expect --url <url> --find <string> [--avoid <string>] [--insecure] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <data> [--cookie <data>]][--ldata <data> [--ldata <data>]]\n"
+	printf "Usage:  check_http_expect --url <url> --find <string> [--avoid <string>] [--find-header <string>] [--avoid-header <string>] [--insecure] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <data> [--cookie <data>]][--ldata <data> [--ldata <data>]]\n"
 	printf "OR      %s --check\n" "${INFO_NAME}"
 	printf "OR      %s --help\n" "${INFO_NAME}"
 	printf "OR      %s --version\n\n" "${INFO_NAME}"
@@ -97,8 +99,10 @@ print_help() {
 
 	# Show defaults
 	printf "  --url                  Target URL\n"
-	printf "  --find                 Find string in source of Target URL ('grep -E'-style regex allowed)\n"
-	printf "  --avoid                [required if find is not specified] ensure that the string does not appear in the source of Target URL\n"
+	printf "  --find                 Find string in source of Target URL ('grep -E'-style regex allowed / can be specified multiple times)\n"
+	printf "  --avoid                [required if find is not specified] ensure that the string does not appear in the source of Target URL ('grep -E'-style regex allowed / can be specified multiple times)\n"
+	printf "  --find-header          [required if find is not specified] same as find but searches in the headers and not the page-source\n"
+	printf "  --avoid-header         [required if find is not specified] same as avoid but searches in the headers and not the page-source\n"
 	printf "  --insecure             [optional] allow insecure SSL connections\n"
 	printf "  --huser                [optional] htaccess username\n"
 	printf "  --hpass                [optional] htaccess password\n"
@@ -118,8 +122,14 @@ print_search() {
 	if [ "${#searchStrings[@]}" -gt 0 ]; then
 		printf "%s\n${separator}" "${searchStrings[@]}"
 	fi
+	if [ "${#searchHeaders[@]}" -gt 0 ]; then
+		printf "[HEAD] %s\n${separator}" "${searchHeaders[@]}"
+	fi
 	if [ "${#avoidStrings[@]}" -gt 0 ]; then
 		printf "[NOT] %s\n${separator}" "${avoidStrings[@]}"
+	fi
+	if [ "${#avoidHeaders[@]}" -gt 0 ]; then
+		printf "[NOT HEAD] %s\n${separator}" "${avoidHeaders[@]}"
 	fi
 }
 
@@ -206,6 +216,14 @@ while [ $# -gt 0  ]; do
 			avoidStrings+=("$1")
 			shift
 			;;
+		--find-header)
+			searchHeaders+=("$1")
+			shift
+			;;
+		--avoid-header)
+			avoidHeaders+=("$1")
+			shift 
+			;;
 		# Cookies
 		--cookie)
 			if [ -z "$cookies" ]; then
@@ -242,7 +260,7 @@ if [ -z "$url" ]; then
 	exit 1
 fi
 
-if [[ "${#searchStrings[@]}" -eq 0  &&  "${#avoidStrings[@]}" -eq 0 ]]; then
+if [[ "${#searchStrings[@]}" -eq 0  &&  "${#avoidStrings[@]}" -eq 0 && "${#searchHeaders[@]}" -eq 0 && "${#avoidHeaders[@]}" -eq 0 ]]; then
 	echo "Error, You must specify what you are looking for."
 	print_usage
 	exit 1
@@ -310,31 +328,49 @@ http_server="$(echo "${head}" | head -n20 | grep -E '^Server:\s' | sed 's/^Serve
 match=""
 numberOfResults=0
 matchingStringAmount=0
-expectedMatches=$((${#searchStrings[@]} + ${#avoidStrings[@]}))
+expectedMatches=$((${#searchStrings[@]} + ${#avoidStrings[@]} + ${#searchHeaders[@]} + ${#avoidHeaders[@]}))
 
-i=0
-while [ $i -lt "${#searchStrings[@]}" ]; do
-		el=${searchStrings[$i]}
-		number=$(echo "${data}" | grep -cE "${el}")
-		match+="$(echo "${data}" | grep -E "${el}")"
-		numberOfResults=$((numberOfResults + number))
-		if [ "$number" -gt 0 ]; then
-				matchingStringAmount=$((matchingStringAmount + 1))
+find_searchstrings() {
+	local i=0
+	local arrayValues="$1[@]"
+	local searchArray=("${!arrayValues}") # using "local -n searchArray=$1" would be more elegant, but most distros still provide bash < 4.3
+	local sourceData=$2
+	
+	while [ $i -lt "${#searchArray[@]}" ]; do
+			el=${searchArray[$i]}
+			number=$(echo "${sourceData}" | grep -cE "${el}")
+			match+="$(echo "${sourceData}" | grep -E "${el}")
+" # using "\n" would require "echo -e" but this would interpret the sourceData as well
+			numberOfResults=$((numberOfResults + number))
+			if [ "$number" -gt 0 ]; then
+					matchingStringAmount=$((matchingStringAmount + 1))
+			fi
+			((i++))
+	done
+}
+
+ensure_avoidstrings() {
+	local i=0
+	local arrayValues="$1[@]"
+	local avoidArray=("${!arrayValues}")
+	local sourceData=$2
+	
+	while [ $i -lt "${#avoidArray[@]}" ]; do
+		el=${avoidArray[$i]}
+		number=$(echo "${sourceData}" | grep -cE "${el}")
+		if [ "$number" -eq 0 ]; then
+			match+=" [NOT] ${el}
+"
+			matchingStringAmount=$((matchingStringAmount + 1))
 		fi
 		((i++))
-done
+	done
+}
 
-i=0
-while [ $i -lt "${#avoidStrings[@]}" ]; do
-	el=${avoidStrings[$i]}
-	number=$(echo "${data}" | grep -cE "${el}")
-	if [ "$number" -eq 0 ]; then
-		match+=" [NOT] ${el}"
-		matchingStringAmount=$((matchingStringAmount + 1))
-	fi
-	((i++))
-done
-
+find_searchstrings searchStrings "${data}"
+find_searchstrings searchHeaders "${head}"
+ensure_avoidstrings avoidStrings "${data}"
+ensure_avoidstrings avoidHeaders "${head}"
 
 if [ "${expectedMatches}" -eq ${matchingStringAmount} ]; then
 	if [ "$numberOfResults" = "1" ]; then
