@@ -20,13 +20,15 @@ Nagios plugin that will check a website (behind .htacess and/or behind POST logi
 ## 1. Usage
 
 ```shell
-Usage:  check_http_expect --url <url> --find <string> [--find <another string>] [--avoid <string>] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <cookie-string> [--cookie <cookie-string>]] [--ldata <data> [--ldata <data>]]
+Usage:  check_http_expect --url <url> --find <string> [--find <another string>] [--avoid <string>] [--follow] [--insecure] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <cookie-string> [--cookie <cookie-string>]] [--ldata <data> [--ldata <data>]]
 
   --url          Target URL
   --find         Find string in source of Target URL ('grep -E'-style regex allowed / can be specified multiple times)
   --avoid        (Required if find is not specified) ensure that the string does not appear in the source of Target URL ('grep -E'-style regex allowed / can be specified multiple times)
   --find-header  (Required if find is not specified) same as '--find' but searches in the headers and not the page-source
   --avoid-header (Required if find is not specified) same as '--avoid' but searches in the headers and not the page-source
+  --follow       (Optional) follow redirects from location-headers
+  --insecure     (Optional) allow insecure SSL connections
   --huser        (Optional) htaccess username
   --hpass        (Optional) htaccess password
   --lurl         (Optional) Url for POST login

@@ -77,7 +77,7 @@ print_version() {
 # @output string  The usage screen.
 # @return integer 0
 print_usage() {
-	printf "Usage:  check_http_expect --url <url> --find <string> [--avoid <string>] [--find-header <string>] [--avoid-header <string>] [--insecure] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <data> [--cookie <data>]][--ldata <data> [--ldata <data>]]\n"
+	printf "Usage:  check_http_expect --url <url> --find <string> [--avoid <string>] [--find-header <string>] [--avoid-header <string>] [--follow] [--insecure] [--huser <user>] [--hpass <pass>] [--lurl <url>] [--cookie <data> [--cookie <data>]][--ldata <data> [--ldata <data>]]\n"
 	printf "OR      %s --check\n" "${INFO_NAME}"
 	printf "OR      %s --help\n" "${INFO_NAME}"
 	printf "OR      %s --version\n\n" "${INFO_NAME}"
@@ -103,6 +103,7 @@ print_help() {
 	printf "  --avoid                [required if find is not specified] ensure that the string does not appear in the source of Target URL ('grep -E'-style regex allowed / can be specified multiple times)\n"
 	printf "  --find-header          [required if find is not specified] same as find but searches in the headers and not the page-source\n"
 	printf "  --avoid-header         [required if find is not specified] same as avoid but searches in the headers and not the page-source\n"
+	printf "  --follow               [optional] follow redirects from location-headers\n"
 	printf "  --insecure             [optional] allow insecure SSL connections\n"
 	printf "  --huser                [optional] htaccess username\n"
 	printf "  --hpass                [optional] htaccess password\n"
@@ -241,6 +242,9 @@ while [ $# -gt 0  ]; do
 			useragent="$1"
 			shift 
 			;;
+	  --follow)
+	  	follow="1"
+	  	;;
 		*)
 			echo "Invalid argument: '${1}'"
 			print_usage
@@ -280,6 +284,10 @@ fi
 
 if [ ! -z "$insecure" ]; then
 	curl_args="-k ${curl_args}"
+fi
+
+if [ ! -z "$follow" ]; then
+	curl_args="-L ${curl_args}"
 fi
 
 # Add cookies
