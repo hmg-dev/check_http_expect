@@ -127,6 +127,9 @@ print_search() {
 	if [ "${#searchStrings[@]}" -gt 0 ]; then
 		printf "%s\n${separator}" "${searchStrings[@]}"
 	fi
+	if [ "${#searchStringsNoRegEx[@]}" -gt 0 ]; then
+		printf "%s\n${separator}" "${searchStringsNoRegEx[@]}"
+	fi
 	if [ "${#searchHeaders[@]}" -gt 0 ]; then
 		printf "[HEAD] %s\n${separator}" "${searchHeaders[@]}"
 	fi
@@ -218,7 +221,7 @@ while [ $# -gt 0  ]; do
 			shift
 			;;
 		--find-from-file)
-			searchStrings+=($(cat "$1"))
+			searchStrings+=("$(cat "$1")")
 			shift
 			;;
 		--find-no-regex)
@@ -226,7 +229,7 @@ while [ $# -gt 0  ]; do
 			shift
 			;;
 		--find-from-file-no-regex)
-			searchStringsNoRegEx+=($(cat "$1"))
+			searchStringsNoRegEx+=("$(cat "$1")")
 			shift
 			;;
 		--avoid)
